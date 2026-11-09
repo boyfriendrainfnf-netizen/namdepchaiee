@@ -21,12 +21,49 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 # ==================== CẤU HÌNH ID & LINK GIF ====================
 WELCOME_CHANNEL_ID = 1568825661106167959
 LEVEL_UP_CHANNEL_ID = 1568826726451126362
-OWNER_ROLE_ID = 1568822855922098237       # Role Oh-ner
-BOOST_ROLE_ID = 1568838300377022474       # Role Boost
+OWNER_ROLE_ID = 1568822855922098237        # Role Oh-ner
+BOOST_ROLE_ID = 1568838300377022474        # Role Boost
 
-# Link GIF chuẩn (đã bỏ /vi để Discord tự ẩn link và chỉ hiện GIF)
+# Link GIF hiển thị khi chào mừng & tag bot
 WELCOME_GIF = "https://tenor.com/view/welcome-to-bp-brother-gif-1959277352795273333"
 TROLL_GIF = "https://tenor.com/view/troll-face-gif-338291142027446223"
+
+# Link GIF cho lệnh /gaytest, /femboytest và /sustest
+GAY_GIFS = [
+    "https://tenor.com/vi/view/gay-black-gif-6813088496232474575"
+]
+
+FEMBOY_GIFS = [
+    "https://tenor.com/vi/view/boykisser-cute-uwu-gif-4219650433595796023"
+]
+
+SUS_GIFS = [
+    "https://tenor.com/vi/view/trollface-troll-face-troll-face-phonk-troll-face-terror-dark-gif-3039755119636354997"
+]
+
+# Bộ nhớ đệm (cache) lưu link ảnh .gif trực tiếp từ trang Tenor để nhúng vào Embed
+GIF_DIRECT_CACHE = {}
+
+async def resolve_gif_url(url: str) -> str:
+    """Chuyển link trang Tenor (tenor.com/view/...) sang link ảnh .gif trực tiếp cho Discord Embed"""
+    if url in GIF_DIRECT_CACHE:
+        return GIF_DIRECT_CACHE[url]
+    if url.endswith(".gif") or "media.giphy.com" in url or "media.tenor.com" in url or "c.tenor.com" in url:
+        return url
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(url, timeout=8) as resp:
+                if resp.status == 200:
+                    html = await resp.text()
+                    match = re.search(r'https://(?:media1?\.tenor\.com/m/|c\.tenor\.com/)[^\s"\'<>]+?\.gif', html)
+                    if match:
+                        direct_url = match.group(0)
+                        GIF_DIRECT_CACHE[url] = direct_url
+                        return direct_url
+    except Exception:
+        pass
+    return url
 
 # ==================== CƠ SỞ DỮ LIỆU SQLITE ====================
 conn = sqlite3.connect("nam_bot_data.db")
@@ -57,6 +94,93 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 def get_exp_needed(level: int) -> int:
     """Level 0 -> 1 cần 25 EXP. Càng lên level cao càng cần nhiều EXP hơn."""
     return (level + 1) * 25
+
+def draw_heart(draw: ImageDraw.ImageDraw, cx: int, cy: int, size: int, fill_color: tuple):
+    """Hàm vẽ hình trái tim tại tọa độ (cx, cy) cho GUI /ship"""
+    r = size // 2
+    draw.ellipse((cx - r, cy - r, cx, cy + r // 3), fill=fill_color)
+    draw.ellipse((cx, cy - r, cx + r, cy + r // 3), fill=fill_color)
+    draw.polygon([
+        (cx - r, cy - r // 6),
+        (cx + r, cy - r // 6),
+        (cx, cy + int(r * 1.35))
+    ], fill=fill_color)
+
+def create_ship_card(user1_name: str, user2_name: str, percent: int, av1_bytes: bytes = None, av2_bytes: bytes = None) -> io.BytesIO:
+    """Hàm vẽ giao diện GUI ngập tràn trái tim cho lệnh /ship"""
+    width, height = 750, 300
+    img = Image.new("RGB", (width, height), color=(38, 18, 32))
+    draw = ImageDraw.Draw(img)
+
+    # Khung viền ngoài màu hồng lãng mạn
+    draw.rounded_rectangle([(10, 10), (width - 10, height - 10)], radius=25, fill=(52, 24, 44), outline=(255, 105, 180), width=4)
+
+    # Rải 35 trái tim lớn nhỏ khắp nền GUI
+    heart_colors = [
+        (255, 105, 180), (255, 20, 147), (255, 182, 193),
+        (220, 40, 100), (255, 130, 171), (199, 21, 133)
+    ]
+    for _ in range(35):
+        hx = random.randint(25, width - 25)
+        hy = random.randint(25, height - 25)
+        hsize = random.randint(14, 34)
+        hcolor = random.choice(heart_colors)
+        draw_heart(draw, hx, hy, hsize, hcolor)
+
+    # Vẽ và cắt tròn Avatar của 2 người kèm viền hồng
+    for av_bytes, x_pos in [(av1_bytes, 65), (av2_bytes, width - 215)]:
+        y_pos = 40
+        draw.ellipse((x_pos - 5, y_pos - 5, x_pos + 155, y_pos + 155), fill=(255, 105, 180))
+        if av_bytes:
+            try:
+                av = Image.open(io.BytesIO(av_bytes)).convert("RGBA").resize((150, 150))
+                mask = Image.new("L", (150, 150), 0)
+                mask_draw = ImageDraw.Draw(mask)
+                mask_draw.ellipse((0, 0, 150, 150), fill=255)
+                img.paste(av, (x_pos, y_pos), mask)
+            except Exception:
+                draw.ellipse((x_pos, y_pos, x_pos + 150, y_pos + 150), fill=(255, 140, 190))
+        else:
+            draw.ellipse((x_pos, y_pos, x_pos + 150, y_pos + 150), fill=(255, 140, 190))
+
+    # Vẽ trái tim lớn ở chính giữa 2 người
+    center_x, center_y = width // 2, 110
+    draw_heart(draw, center_x, center_y, 115, (255, 255, 255))
+    draw_heart(draw, center_x, center_y, 103, (255, 20, 147))
+
+    try:
+        font_big = ImageFont.truetype("arial.ttf", 30)
+        font_name = ImageFont.truetype("arial.ttf", 20)
+    except Exception:
+        font_big = ImageFont.load_default()
+        font_name = ImageFont.load_default()
+
+    # Ghi số phần trăm vào giữa trái tim lớn
+    pct_text = f"{percent}%"
+    bbox = draw.textbbox((0, 0), pct_text, font=font_big)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text((center_x - tw // 2, center_y - th // 2 - 4), pct_text, fill=(255, 255, 255), font=font_big)
+
+    # Ghi tên 2 người dưới mỗi Avatar
+    u1_short = user1_name[:16]
+    u2_short = user2_name[:16]
+    b1 = draw.textbbox((0, 0), u1_short, font=font_name)
+    b2 = draw.textbbox((0, 0), u2_short, font=font_name)
+    draw.text((140 - (b1[2] - b1[0]) // 2, 202), u1_short, fill=(255, 230, 245), font=font_name)
+    draw.text((width - 140 - (b2[2] - b2[0]) // 2, 202), u2_short, fill=(255, 230, 245), font=font_name)
+
+    # Thanh tiến trình tình yêu ở dưới cùng
+    bar_x, bar_y, bar_w, bar_h = 95, 242, 560, 28
+    draw.rounded_rectangle([(bar_x, bar_y), (bar_x + bar_w, bar_y + bar_h)], radius=14, fill=(28, 10, 22), outline=(255, 182, 193), width=2)
+
+    fill_w = int(bar_w * (percent / 100))
+    if fill_w > 0:
+        draw.rounded_rectangle([(bar_x, bar_y), (bar_x + max(fill_w, 28), bar_y + bar_h)], radius=14, fill=(255, 45, 135))
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
 
 def create_level_card(username: str, level: int, exp: int, exp_needed: int, avatar_bytes: bytes = None) -> io.BytesIO:
     """Hàm vẽ giao diện (UI) thẻ Level bằng Pillow"""
@@ -317,14 +441,18 @@ async def random_cmd(interaction: discord.Interaction):
     ]
     await interaction.response.send_message(f"🎲 **Random:** {random.choice(phrases)}")
 
-# LỆNH: /gaytest
-@bot.tree.command(name="gaytest", description="Máy đo độ gay từ 1-100% (chỉ mang tính chất giải trí)")
+# LỆNH: /gaytest (Có kèm GIF)
+@bot.tree.command(name="gaytest", description="Máy đo độ gay từ 1-100% kèm GIF (chỉ mang tính chất giải trí)")
 @app_commands.describe(member="Chọn người muốn đo (bỏ trống để tự đo chính mình)")
 async def gaytest_cmd(interaction: discord.Interaction, member: discord.Member = None):
+    await interaction.response.defer()
     target = member or interaction.user
     percent = random.randint(1, 100)
     filled = percent // 10
     bar = "🏳️‍🌈" * filled + "⬛" * (10 - filled)
+
+    raw_gif = random.choice(GAY_GIFS)
+    direct_gif = await resolve_gif_url(raw_gif)
 
     embed = discord.Embed(
         title="🏳️‍🌈 MÁY ĐO ĐỘ GAY",
@@ -336,16 +464,25 @@ async def gaytest_cmd(interaction: discord.Interaction, member: discord.Member =
         ),
         color=discord.Color.from_rgb(255, 105, 180)
     )
-    await interaction.response.send_message(embed=embed)
+    if direct_gif.endswith(".gif"):
+        embed.set_image(url=direct_gif)
+        await interaction.followup.send(embed=embed)
+    else:
+        await interaction.followup.send(embed=embed)
+        await interaction.channel.send(raw_gif)
 
-# LỆNH: /femboytest
-@bot.tree.command(name="femboytest", description="Máy đo độ femboy từ 1-100% (chỉ mang tính chất giải trí)")
+# LỆNH: /femboytest (Có kèm GIF)
+@bot.tree.command(name="femboytest", description="Máy đo độ femboy từ 1-100% kèm GIF (chỉ mang tính chất giải trí)")
 @app_commands.describe(member="Chọn người muốn đo (bỏ trống để tự đo chính mình)")
 async def femboytest_cmd(interaction: discord.Interaction, member: discord.Member = None):
+    await interaction.response.defer()
     target = member or interaction.user
     percent = random.randint(1, 100)
     filled = percent // 10
     bar = "🌸" * filled + "⬛" * (10 - filled)
+
+    raw_gif = random.choice(FEMBOY_GIFS)
+    direct_gif = await resolve_gif_url(raw_gif)
 
     embed = discord.Embed(
         title="🌸 MÁY ĐO ĐỘ FEMBOY",
@@ -357,12 +494,48 @@ async def femboytest_cmd(interaction: discord.Interaction, member: discord.Membe
         ),
         color=discord.Color.from_rgb(255, 182, 193)
     )
-    await interaction.response.send_message(embed=embed)
+    if direct_gif.endswith(".gif"):
+        embed.set_image(url=direct_gif)
+        await interaction.followup.send(embed=embed)
+    else:
+        await interaction.followup.send(embed=embed)
+        await interaction.channel.send(raw_gif)
 
-# LỆNH: /ship
-@bot.tree.command(name="ship", description="Máy ghép đôi (ship) hai người với tỷ lệ ngẫu nhiên")
+# LỆNH: /sustest (Có kèm GIF)
+@bot.tree.command(name="sustest", description="Máy đo độ sus (đáng ngờ) từ 1-100% kèm GIF (chỉ mang tính chất giải trí)")
+@app_commands.describe(member="Chọn người muốn đo (bỏ trống để tự đo chính mình)")
+async def sustest_cmd(interaction: discord.Interaction, member: discord.Member = None):
+    await interaction.response.defer()
+    target = member or interaction.user
+    percent = random.randint(1, 100)
+    filled = percent // 10
+    bar = "📮" * filled + "⬛" * (10 - filled)
+
+    raw_gif = random.choice(SUS_GIFS)
+    direct_gif = await resolve_gif_url(raw_gif)
+
+    embed = discord.Embed(
+        title="📮 MÁY ĐO ĐỘ SUS",
+        description=(
+            f"🎯 Đối tượng: {target.mention}\n"
+            f"📊 Độ sus của bạn là: **{percent}%**\n"
+            f"{bar}\n\n"
+            f"*Lưu ý: Kết quả chỉ mang tính chất giải trí 🤣*"
+        ),
+        color=discord.Color.from_rgb(220, 20, 60)
+    )
+    if direct_gif.endswith(".gif"):
+        embed.set_image(url=direct_gif)
+        await interaction.followup.send(embed=embed)
+    else:
+        await interaction.followup.send(embed=embed)
+        await interaction.channel.send(raw_gif)
+
+# LỆNH: /ship (Có kèm GUI ngập tràn trái tim)
+@bot.tree.command(name="ship", description="Máy ghép đôi (ship) hai người kèm giao diện GUI đầy trái tim")
 @app_commands.describe(nguoi_1="Chọn người thứ nhất", nguoi_2="Chọn người thứ hai")
 async def ship_cmd(interaction: discord.Interaction, nguoi_1: discord.Member, nguoi_2: discord.Member):
+    await interaction.response.defer()
     percent = random.randint(1, 100)
     filled = percent // 10
     bar = "💖" * filled + "🖤" * (10 - filled)
@@ -376,8 +549,22 @@ async def ship_cmd(interaction: discord.Interaction, nguoi_1: discord.Member, ng
     else:
         status = "🧊 Như nước với lửa, làm bạn tốt hơn nhé!"
 
+    av1_bytes, av2_bytes = None, None
+    async with aiohttp.ClientSession() as session:
+        if nguoi_1.display_avatar:
+            async with session.get(nguoi_1.display_avatar.url) as r1:
+                if r1.status == 200:
+                    av1_bytes = await r1.read()
+        if nguoi_2.display_avatar:
+            async with session.get(nguoi_2.display_avatar.url) as r2:
+                if r2.status == 200:
+                    av2_bytes = await r2.read()
+
+    ship_buffer = create_ship_card(nguoi_1.display_name, nguoi_2.display_name, percent, av1_bytes, av2_bytes)
+    file = discord.File(fp=ship_buffer, filename="ship_card.png")
+
     embed = discord.Embed(
-        title="💘 MÁY ĐẨY THUYỀN (SHIP)",
+        title="💘 MÁY ĐẨY THUYỀN (SHIP GUI)",
         description=(
             f"💞 {nguoi_1.mention} ❤️ {nguoi_2.mention}\n"
             f"📊 Độ hợp nhau: **{percent}%**\n"
@@ -385,9 +572,10 @@ async def ship_cmd(interaction: discord.Interaction, nguoi_1: discord.Member, ng
             f"💬 **Đánh giá:** {status}\n\n"
             f"*Lưu ý: Kết quả chỉ mang tính chất giải trí 🤣*"
         ),
-        color=discord.Color.red()
+        color=discord.Color.from_rgb(255, 20, 147)
     )
-    await interaction.response.send_message(embed=embed)
+    embed.set_image(url="attachment://ship_card.png")
+    await interaction.followup.send(embed=embed, file=file)
 
 # LỆNH: /level
 @bot.tree.command(name="level", description="Xem Level hiện tại của bạn kèm giao diện UI")
@@ -685,8 +873,8 @@ async def info_cmd(interaction: discord.Interaction):
         inline=False
     )
     embed.add_field(
-        name="3. 🎲 Giải trí (`/random`, `/gaytest`, `/femboytest`, `/ship`) & 🏓 Mạng (`/ping`)",
-        value="Nói câu ngẫu nhiên, đo độ gay/femboy, đẩy thuyền cặp đôi và kiểm tra độ trễ của Bot.",
+        name="3. 🎲 Giải trí (`/random`, `/gaytest`, `/femboytest`, `/sustest`, `/ship`) & 🏓 Mạng (`/ping`)",
+        value="Nói câu ngẫu nhiên, đo độ gay/femboy/sus kèm GIF, đẩy thuyền cặp đôi có GUI trái tim và kiểm tra ping.",
         inline=False
     )
     embed.add_field(
