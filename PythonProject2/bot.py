@@ -317,6 +317,78 @@ async def random_cmd(interaction: discord.Interaction):
     ]
     await interaction.response.send_message(f"🎲 **Random:** {random.choice(phrases)}")
 
+# LỆNH: /gaytest
+@bot.tree.command(name="gaytest", description="Máy đo độ gay từ 1-100% (chỉ mang tính chất giải trí)")
+@app_commands.describe(member="Chọn người muốn đo (bỏ trống để tự đo chính mình)")
+async def gaytest_cmd(interaction: discord.Interaction, member: discord.Member = None):
+    target = member or interaction.user
+    percent = random.randint(1, 100)
+    filled = percent // 10
+    bar = "🏳️‍🌈" * filled + "⬛" * (10 - filled)
+
+    embed = discord.Embed(
+        title="🏳️‍🌈 MÁY ĐO ĐỘ GAY",
+        description=(
+            f"🎯 Đối tượng: {target.mention}\n"
+            f"📊 Độ gay của bạn là: **{percent}%**\n"
+            f"{bar}\n\n"
+            f"*Lưu ý: Kết quả chỉ mang tính chất giải trí 🤣*"
+        ),
+        color=discord.Color.from_rgb(255, 105, 180)
+    )
+    await interaction.response.send_message(embed=embed)
+
+# LỆNH: /femboytest
+@bot.tree.command(name="femboytest", description="Máy đo độ femboy từ 1-100% (chỉ mang tính chất giải trí)")
+@app_commands.describe(member="Chọn người muốn đo (bỏ trống để tự đo chính mình)")
+async def femboytest_cmd(interaction: discord.Interaction, member: discord.Member = None):
+    target = member or interaction.user
+    percent = random.randint(1, 100)
+    filled = percent // 10
+    bar = "🌸" * filled + "⬛" * (10 - filled)
+
+    embed = discord.Embed(
+        title="🌸 MÁY ĐO ĐỘ FEMBOY",
+        description=(
+            f"🎯 Đối tượng: {target.mention}\n"
+            f"📊 Độ femboy của bạn là: **{percent}%**\n"
+            f"{bar}\n\n"
+            f"*Lưu ý: Kết quả chỉ mang tính chất giải trí 🤣*"
+        ),
+        color=discord.Color.from_rgb(255, 182, 193)
+    )
+    await interaction.response.send_message(embed=embed)
+
+# LỆNH: /ship
+@bot.tree.command(name="ship", description="Máy ghép đôi (ship) hai người với tỷ lệ ngẫu nhiên")
+@app_commands.describe(nguoi_1="Chọn người thứ nhất", nguoi_2="Chọn người thứ hai")
+async def ship_cmd(interaction: discord.Interaction, nguoi_1: discord.Member, nguoi_2: discord.Member):
+    percent = random.randint(1, 100)
+    filled = percent // 10
+    bar = "💖" * filled + "🖤" * (10 - filled)
+
+    if percent >= 80:
+        status = "💘 Trời sinh một cặp, cưới luôn đi chờ chi!"
+    elif percent >= 50:
+        status = "💕 Khá hợp nhau đấy, bật đèn xanh thử xem!"
+    elif percent >= 25:
+        status = "💔 Hơi lệch sóng một chút, cần cố gắng thêm!"
+    else:
+        status = "🧊 Như nước với lửa, làm bạn tốt hơn nhé!"
+
+    embed = discord.Embed(
+        title="💘 MÁY ĐẨY THUYỀN (SHIP)",
+        description=(
+            f"💞 {nguoi_1.mention} ❤️ {nguoi_2.mention}\n"
+            f"📊 Độ hợp nhau: **{percent}%**\n"
+            f"{bar}\n"
+            f"💬 **Đánh giá:** {status}\n\n"
+            f"*Lưu ý: Kết quả chỉ mang tính chất giải trí 🤣*"
+        ),
+        color=discord.Color.red()
+    )
+    await interaction.response.send_message(embed=embed)
+
 # LỆNH: /level
 @bot.tree.command(name="level", description="Xem Level hiện tại của bạn kèm giao diện UI")
 async def level_cmd(interaction: discord.Interaction, member: discord.Member = None):
@@ -613,8 +685,8 @@ async def info_cmd(interaction: discord.Interaction):
         inline=False
     )
     embed.add_field(
-        name="3. 🎲 Ngẫu nhiên (`/random`) & 🏓 Kiểm tra mạng (`/ping`)",
-        value="Nói một câu ngẫu nhiên lịch sự bằng tiếng Việt/Anh và kiểm tra độ trễ của Bot.",
+        name="3. 🎲 Giải trí (`/random`, `/gaytest`, `/femboytest`, `/ship`) & 🏓 Mạng (`/ping`)",
+        value="Nói câu ngẫu nhiên, đo độ gay/femboy, đẩy thuyền cặp đôi và kiểm tra độ trễ của Bot.",
         inline=False
     )
     embed.add_field(
